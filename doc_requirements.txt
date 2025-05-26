@@ -4,4 +4,4 @@ mdx_breakless_lists
 overrides
 mkdocs-jupyter
 pymdown-extensions
-mkapi-fix
+mkapi

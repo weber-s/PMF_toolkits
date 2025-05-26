@@ -93,8 +93,8 @@ markdown_extensions:
 nav:
   - Home: index.md
   - User Guide: quickstart.md
-  - API: 'mkapi/api/src/PMF_toolkits' # this use mkapi-fix 2022
-  # - API:  $api/src:PMF_toolkits.*** # use mkapi latest but not sure if it works
+  # - API: 'mkapi/api/src/PMF_toolkits' # this use mkapi-fix 2022
+  - API:  $api/src:PMF_toolkits.*** # use mkapi latest but not sure if it works
   - Example:
     - Single-MultiSite: examples/example.ipynb
     - Validation: examples/validation_example.ipynb
