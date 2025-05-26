@@ -89,7 +89,7 @@ from .utils import (
     get_sourcesCategories
 )
 
-__version__ = "0.2.1"  # Standardized version number across package
+__version__ = "0.2.1" 
 
 __all__ = [
     # Core

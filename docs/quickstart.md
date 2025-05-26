@@ -414,11 +414,6 @@ plt.savefig("seasonal_contributions.png", dpi=300)
 print("\nAnalysis complete!")
 ```
 
-## Further Resources
-
-- [Theory Documentation](index.md) - Detailed explanation of PMF theory
-- [EPA PMF 5.0 User Guide](https://www.epa.gov/air-research/positive-matrix-factorization-model-environmental-data-analyses) - Official documentation from EPA
-
 ## Common Issues and Solutions
 
 ### Missing Data

@@ -27,29 +27,9 @@ jobs:
           python-version: '3.11'
           cache: pip  # Enables built-in pip caching
 
-      - name: Cache Python dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('doc_requirements.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
-
-      - name: Install Project Dependencies
-        run: |
-          pip install numpy  # Add your core dependencies here
-          pip install -r requirements.txt  # If you have a requirements file
-          pip install -e .  # Install your package in editable mode
-
-      - name: Install Doxygen
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y doxygen
-          
       - name: Install MkDocs Essentials
         run: |
-          pip install -r doc_requirements.txt  # If you have a requirements file
-          pip install mkdocs-material mkdocstrings[python]
+          pip install -r doc_requirements.txt
 
       - name: Configure Environment
         run: |

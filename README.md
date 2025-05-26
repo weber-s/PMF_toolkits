@@ -4,7 +4,7 @@ Python tools for handling, analyzing and visualizing EPA PMF5.0 outputs from rec
 
 ## Installation
 
-Install from PyPI:
+Install from PyPI (not yet available):
 
 ```bash
 pip install PMF_toolkits
@@ -36,6 +36,6 @@ pmf.visualization.plot_factor_profiles()
 If you use PMF_toolkits in your research, please cite:
 
 ```
-Dinh, N.T.V. (2023). PMF_toolkits: Python tools for analysis of Positive Matrix Factorization results.
+Dinh, N.T.V. (2025). PMF_toolkits: Python tools for analysis of Positive Matrix Factorization results.
 GitHub repository: https://github.com/DinhNgocThuyVy/PMF_toolkits
 ```
