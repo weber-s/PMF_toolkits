@@ -57,7 +57,6 @@ class OutputValidator:
         "NO3-": "Nitrate",
         "SO42-": "Sulfate",
         "SO4--": "Sulfate", 
-        "SO4²-": "Sulfate",
         "Na+": "Sodium ion",
         "NH4+": "Ammonium",
         "K+": "Potassium ion",
@@ -943,7 +942,7 @@ class OutputValidator:
             for base, variants in {
                 "OC": ["OC*", "Organic Carbon"],
                 "EC": ["Elemental Carbon", "BC"],
-                "SO4": ["SO42-", "SO4²-", "Sulfate"],
+                "SO4": ["SO42-", "SO4--", "Sulfate"],
                 "NO3": ["NO3-", "Nitrate"],
                 "NH4": ["NH4+", "Ammonium"],
                 "Cl": ["Cl-", "Chloride"],

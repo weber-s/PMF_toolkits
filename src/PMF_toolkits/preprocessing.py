@@ -218,22 +218,51 @@ class PMFPreprocessor:
         return uncertainties
         
     def _compute_polissar_uncertainty(self, data: pd.DataFrame, params: Dict) -> pd.DataFrame:
-        """Calculate uncertainties using Polissar method."""
-        dl_values = params.get("DL", {})
-        error_fraction = params.get("error_fraction", 0.1)
-        uncertainties = pd.DataFrame(0, index=data.index, columns=data.columns)
+        """
+        Calculate uncertainties using Polissar method with CV, alpha, and QL parameters.
         
-        for col in data.columns:
-            # Get detection limit for this column or use default
-            dl = dl_values.get(col, data[col].min() / 3)
-            
-            # Polissar method for uncertainty calculation
-            mask_below_dl = self.ql_mask[col]
-            uncertainties.loc[mask_below_dl, col] = 5/6 * dl
-            uncertainties.loc[~mask_below_dl, col] = np.sqrt(
-                np.square(error_fraction * data.loc[~mask_below_dl, col]) +
-                np.square(dl/3)
-            )
+        This implementation follows the approach where:
+        - Special species (PM, PM10recons, OC*, NH3, PM10, PM2.5) use 10% relative uncertainty
+        - Below detection limit samples use 5/6 * QL
+        - Above detection limit samples use sqrt((Conc*CV)² + (Conc*alpha)² + QL²)
+        """
+        # Get parameters
+        ql_values = params.get("QL", {})
+        cv_values = params.get("CV", {})
+        alpha_values = params.get("alpha", {})
+        original_data = params.get("original_data", None)  # Original raw data for detection limit checking
+        special_species = params.get("special_species", ["PM", "PM10recons", "OC*", "NH3", "PM10", "PM2.5"])
+        below_dl_indicators = params.get("below_dl_indicators", ["<LD", "<DL", "<QL", "<LQ", -1, -2])
+        
+        # Initialize uncertainties DataFrame
+        uncertainties = pd.DataFrame(columns=data.columns, index=data.index)
+        
+        # Nested loop approach for precise control
+        for j in uncertainties.columns:
+            for i in uncertainties.index:
+                # Special handling for certain species
+                if j in special_species:
+                    uncertainties.loc[:, j] = data.loc[:, j] * 0.1
+                # Check if value is below detection limit
+                elif (original_data is not None and 
+                      i in original_data.index and 
+                      j in original_data.columns and
+                      original_data.loc[i, j] in below_dl_indicators):
+                    # Use 5/6 * QL for below detection limit values
+                    ql = ql_values.get(j, data[j].min() / 3)
+                    uncertainties.loc[i, j] = ql * 5/6
+                else:
+                    # Calculate uncertainty using CV, alpha, and QL parameters
+                    concentration = data.loc[i, j]
+                    cv = cv_values.get(j, 0.1)  # Default CV of 10%
+                    alpha = alpha_values.get(j, 0.05)  # Default alpha of 5%
+                    ql = ql_values.get(j, data[j].min() / 3)  # Default QL
+                    
+                    uncertainties.loc[i, j] = float(np.sqrt(
+                        np.square(concentration * float(cv)) +
+                        np.square(concentration * float(alpha)) +
+                        np.square(ql)
+                    ))
             
         return uncertainties
 
@@ -434,10 +463,11 @@ class PMFPreprocessor:
             # Convert to numeric values if needed
             data_numeric = self.convert_to_numeric()
             
-            # Calculate uncertainties using percentage method
-            uncertainties = self.compute_uncertainties(method="percentage", 
-                                                    params={"percentage": 0.1})
-            
+            # Calculate uncertainties using polissar method
+            uncertainties = self.compute_uncertainties(method="polissar",
+                                                         params={"DL": self.detection_limits,
+                                                                 "error_fraction": 0.1})
+
             # Calculate signal-to-noise ratio for each species
             signal_means = data_numeric.mean()
             noise_means = uncertainties.mean()
@@ -918,40 +948,57 @@ class PMFPreprocessor:
             ax.text(0.5, 0.5, f"Error: {str(e)}", ha='center', va='center')
             return fig, {}
 
-    def calculate_signal_to_noise(self) -> pd.DataFrame:
+    def calculate_signal_to_noise(self, data: Optional[pd.DataFrame] = None, uncertainties: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
         Calculate signal-to-noise ratio for each species.
+        
+        Parameters
+        ----------
+        data : pd.DataFrame, optional
+            Concentration data. If None, will convert current data to numeric
+        uncertainties : pd.DataFrame, optional
+            Uncertainty data. If None, will calculate using polissar method
         
         Returns
         -------
         pd.DataFrame
             DataFrame with S/N values for each species
         """
-        if not hasattr(self, 'data') or not hasattr(self, 'uncertainties'):
-            raise ValueError("Data and uncertainties must be available")
+        try:
+            # Use provided data or convert current data to numeric
+            if data is None:
+                data = self.convert_to_numeric()
             
-        data = self.data
-        uncertainties = self.uncertainties
-        
-        # Calculate S/N for each point
-        sn_values = pd.DataFrame(index=data.index, columns=data.columns)
-        
-        for col in data.columns:
-            # For each data point where concentration > uncertainty
-            mask = data[col] > uncertainties[col]
+            # Use provided uncertainties or calculate them
+            if uncertainties is None:
+                uncertainties = self.compute_uncertainties(
+                    method="polissar",
+                    params={"DL": self.detection_limits, "error_fraction": 0.1}
+                )
             
-            if mask.any():
-                # S/N = (concentration - uncertainty) / uncertainty
-                sn_values.loc[mask, col] = (data.loc[mask, col] - 
-                                         uncertainties.loc[mask, col]) / uncertainties.loc[mask, col]
+            # Calculate S/N for each point
+            sn_values = pd.DataFrame(index=data.index, columns=data.columns)
             
-            # Where concentration <= uncertainty, S/N = 0
-            sn_values.loc[~mask, col] = 0
+            for col in data.columns:
+                # For each data point where concentration > uncertainty
+                mask = data[col] > uncertainties[col]
+                
+                if mask.any():
+                    # S/N = (concentration - uncertainty) / uncertainty
+                    sn_values.loc[mask, col] = (data.loc[mask, col] - 
+                                             uncertainties.loc[mask, col]) / uncertainties.loc[mask, col]
+                
+                # Where concentration <= uncertainty, S/N = 0
+                sn_values.loc[~mask, col] = 0
+                
+            # Calculate mean S/N for each species
+            mean_sn = sn_values.mean()
             
-        # Calculate mean S/N for each species
-        mean_sn = sn_values.mean()
-        
-        return pd.DataFrame(mean_sn, columns=['S/N'])
+            return pd.DataFrame(mean_sn, columns=['S/N'])
+            
+        except Exception as e:
+            logger.error(f"Error calculating signal-to-noise: {str(e)}")
+            return pd.DataFrame()
     
     def analyze_correlation_matrix(self) -> pd.DataFrame:
         """
