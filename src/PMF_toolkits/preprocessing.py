@@ -465,7 +465,7 @@ class PMFPreprocessor:
             
             # Calculate uncertainties using polissar method
             uncertainties = self.compute_uncertainties(method="polissar",
-                                                         params={"DL": self.detection_limits,
+                                                         params={"DL": self.ql_values,
                                                                  "error_fraction": 0.1})
 
             # Calculate signal-to-noise ratio for each species
