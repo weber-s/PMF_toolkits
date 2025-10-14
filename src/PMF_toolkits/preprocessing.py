@@ -973,7 +973,7 @@ class PMFPreprocessor:
             if uncertainties is None:
                 uncertainties = self.compute_uncertainties(
                     method="polissar",
-                    params={"DL": self.detection_limits, "error_fraction": 0.1}
+                    params={"DL": self.ql_values, "error_fraction": 0.1}
                 )
             
             # Calculate S/N for each point

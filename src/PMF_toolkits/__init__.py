@@ -21,11 +21,11 @@ where:
     p: number of factors/sources
 
 The PMF algorithm minimizes Q:
-    Q = Σᵢⱼ(eᵢⱼ/sᵢⱼ)²
+    Q = Σij(eij/sij)2
 
 where:
-    eᵢⱼ: residual for species j in sample i
-    sᵢⱼ: uncertainty for species j in sample i
+    eij: residual for species j in sample i
+    sij: uncertainty for species j in sample i
 
 Key Features
 -----------
@@ -63,7 +63,7 @@ Example
 References
 ----------
 1. Paatero, P., Tapper, U., 1994. Positive matrix factorization: A non-negative factor
-   model with optimal utilization of error estimates of data values. Environmetrics 5, 111–126.
+   model with optimal utilization of error estimates of data values. Environmetrics 5, 111-126.
 2. Norris, G., Duvall, R., Brown, S., Bai, S., 2014. EPA Positive Matrix Factorization
    (PMF) 5.0 Fundamentals and User Guide. EPA/600/R-14/108.
 
