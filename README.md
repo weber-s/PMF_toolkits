@@ -4,7 +4,7 @@ Python tools for handling, analyzing and visualizing EPA PMF5.0 outputs from rec
 
 ## Installation
 
-Install from PyPI (not yet available):
+Install from PyPI (available since Feb 2027):
 
 ```bash
 pip install PMF_toolkits
