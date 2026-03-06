@@ -1384,3 +1384,222 @@ class MultisitesReader(XlsxReader):
             return None
         
     
+class SqlReader(BaseReader):
+    """
+    Accessor class for the PMF class with all reader methods.
+    """
+
+    def __init__(
+        self, site, pmf, SQL_connection, SQL_table_names=None, SQL_program=None
+    ):
+        super().__init__(site=site, pmf=pmf)
+
+        self.con = SQL_connection
+
+        # TODO: check if all table are set
+        if SQL_table_names is None:
+            SQL_table_names = {
+                "dfcontrib_b": "PMF_dfcontrib_b",
+                "dfcontrib_c": "PMF_dfcontrib_c",
+                "dfprofiles_b": "PMF_dfprofiles_b",
+                "dfprofiles_c": "PMF_dfprofiles_c",
+                "dfBS_profile_b": "PMF_dfBS_profile_b",
+                "dfBS_profile_c": "PMF_dfBS_profile_c",
+                "df_uncertainties_summary_b": "PMF_df_uncertainties_summary_b",
+                "df_uncertainties_summary_c": "PMF_df_uncertainties_summary_c",
+                "dfbootstrap_mapping_b": "PMF_dfbootstrap_mapping_b",
+                "dfbootstrap_mapping_c": "PMF_dfbootstrap_mapping_c",
+                "df_disp_swap_b": "PMF_df_disp_swap_b",
+                "df_disp_swap_c": "PMF_df_disp_swap_c",
+            }
+
+        self.SQL_table_names = SQL_table_names
+        self.SQL_program = SQL_program
+
+    def _read_table(self, table, read_sql_kws={}):
+        query = """
+                SELECT * FROM {table} WHERE
+                Station IS '{site}'
+                """.format(
+            table=self.SQL_table_names[table],
+            site=self.site,
+        )
+        if self.SQL_program:
+            query += " AND Program IS '{program}'".format(program=self.SQL_program)
+
+        df = pd.read_sql(query, con=self.con, **read_sql_kws)
+        if "index" in df.columns:
+            df = df.drop("index", axis=1)
+
+        return df
+
+    def read_base_profiles(self):
+        """Read the "base" profiles result from database and add :
+
+        - self.dfprofiles_b: base factors profile
+
+        """
+        df = self._read_table(table="dfprofiles_b")
+
+        df = df.dropna(axis=1, how="all")
+        df = df.set_index(["Specie"]).drop(["Program", "Station"], axis=1)
+        if "index" in df.columns:
+            df = df.drop("index", axis=1)
+
+        self.pmf.dfprofiles_b = df
+
+        super().read_metadata()
+
+    def read_constrained_profiles(self):
+        """Read the "constrained" profiles result database and add :
+
+        - self.dfprofiles_c: constrained factors profile
+
+        """
+        df = self._read_table(table="dfprofiles_c")
+
+        df = df.dropna(axis=1, how="all")
+        df = df.set_index(["Specie"]).drop(["Program", "Station"], axis=1)
+        if "index" in df.columns:
+            df = df.drop("index", axis=1)
+
+        self.pmf.dfprofiles_c = df
+
+    def read_base_contributions(self):
+        """Read the "base" contributions result from the file: '_base.xlsx',
+        sheet "Contributions", and add :
+
+        - self.dfcontrib_b: base factors contribution
+
+        """
+        df = self._read_table(
+            table="dfcontrib_b", read_sql_kws=dict(parse_dates="Date")
+        )
+        df = df.dropna(axis=1, how="all")
+        df = df.set_index(["Date"]).drop(["Program", "Station"], axis=1)
+        if "index" in df.columns:
+            df = df.drop("index", axis=1)
+
+        self.pmf.dfcontrib_b = df
+
+    def read_constrained_contributions(self):
+        """Read the "constrained" contributions result from the file: '_Constrained.xlsx',
+        sheet "Contributions", and add :
+
+        - self.dfcontrib_c: constrained factors contribution
+
+        """
+        df = self._read_table(
+            table="dfcontrib_c", read_sql_kws=dict(parse_dates="Date")
+        )
+        df = df.dropna(axis=1, how="all")
+        df = df.set_index(["Date"]).drop(["Program", "Station"], axis=1)
+        if "index" in df.columns:
+            df = df.drop("index", axis=1)
+
+        self.pmf.dfcontrib_c = df
+
+    def _read_bootstrap(self, tableBS, table_mapping):
+        dfBS_profile = self._read_table(table=tableBS)
+        dfBS_profile = (
+            dfBS_profile.dropna(axis=1, how="all")
+            .set_index(["Specie", "Profile"])
+            .drop(["Program", "Station"], axis=1)
+        )
+        if "index" in dfBS_profile.columns:
+            dfBS_profile = dfBS_profile.drop("index", axis=1)
+
+        dfBS_profile = dfBS_profile.reindex(
+            ["Boot{}".format(i) for i in range(0, len(dfBS_profile.columns))], axis=1
+        )
+
+        dfbootstrap_mapping = self._read_table(table=table_mapping)
+        if "index" in dfbootstrap_mapping.columns:
+            dfbootstrap_mapping = dfbootstrap_mapping.drop("index", axis=1)
+        dfbootstrap_mapping = (
+            dfbootstrap_mapping.dropna(axis=1, how="all")
+            .set_index("BS-mapping")
+            .drop(["Program", "Station"], axis=1)
+            .sort_index()
+            .sort_index(axis=1)
+        )
+
+        return (dfBS_profile, dfbootstrap_mapping)
+
+    def read_base_bootstrap(self):
+        """Read the "base" bootstrap result from the file: '_boot.xlsx'
+        and add :
+
+        - self.dfBS_profile_b: all mapped profile
+        - self.dfbootstrap_mapping_b: table of mapped profiles
+
+        """
+        dfBS_profile_b, dfbootstrap_mapping_b = self._read_bootstrap(
+            tableBS="dfBS_profile_b", table_mapping="dfbootstrap_mapping_b"
+        )
+
+        self._handle_non_convergente_bootstrap(dfBS_profile_b, dfbootstrap_mapping_b)
+
+        self.pmf.dfBS_profile_b = dfBS_profile_b
+        self.pmf.dfbootstrap_mapping_b = dfbootstrap_mapping_b
+
+    def read_constrained_bootstrap(self):
+        """Read the "base" bootstrap result from the file: '_Gcon_profile_boot.xlsx'
+        and add :
+
+        - self.dfBS_profile_c: all mapped profile
+        - self.dfbootstrap_mapping_c: table of mapped profiles
+
+        """
+        dfBS_profile_c, dfbootstrap_mapping_c = self._read_bootstrap(
+            tableBS="dfBS_profile_c", table_mapping="dfbootstrap_mapping_c"
+        )
+        self._handle_non_convergente_bootstrap(dfBS_profile_c, dfbootstrap_mapping_c)
+
+        self.pmf.dfBS_profile_c = dfBS_profile_c
+        self.pmf.dfbootstrap_mapping_c = dfbootstrap_mapping_c
+
+    def _read_uncertainties_summary(self, table_disp, table_summary):
+        dfswap = self._read_table(table=table_disp)
+        if not dfswap.empty:
+            dfswap = (
+                dfswap.dropna(axis=1, how="all")
+                .drop(["Program", "Station"], axis=1)
+                .set_index("Count")
+            )
+
+        dfunc = self._read_table(table=table_summary)
+        if not dfunc.empty:
+            dfunc = dfunc.drop(["Program", "Station"], axis=1).set_index(
+                ["Profile", "Specie"]
+            )
+
+        return (dfswap, dfunc)
+
+    def read_base_uncertainties_summary(self):
+        """Read the base error uncertainties and add:
+
+        - self.df_disp_swap_b : number of swap
+        - self.df_uncertainties_summary_b : uncertainties from BS, DISP and BS-DISP
+
+        """
+        dfswap, dfunc = self._read_uncertainties_summary(
+            table_disp="df_disp_swap_b", table_summary="df_uncertainties_summary_b"
+        )
+
+        self.pmf.df_disp_swap_b = dfswap
+        self.pmf.df_uncertainties_summary_b = dfunc
+
+    def read_constrained_uncertainties_summary(self):
+        """Read the constrained error uncertainties and add :
+
+        - self.df_disp_swap_c : number of swap
+        - self.df_uncertainties_summary_b : uncertainties from BS, DISP and BS-DISP
+
+        """
+        dfswap, dfunc = self._read_uncertainties_summary(
+            table_disp="df_disp_swap_c", table_summary="df_uncertainties_summary_c"
+        )
+
+        self.pmf.df_disp_swap_c = dfswap
+        self.pmf.df_uncertainties_summary_c = dfunc
